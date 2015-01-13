@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <title>cems-scroller</title>
+
+  <script src="../../webcomponentsjs/webcomponents.js"></script>
+  <script src="../../web-component-tester/browser.js"></script>
+
+  <!-- Step 1: import the element to test -->
+  <link rel="import" href="../cems-scroller.html">
+
+</head>
+<body>
+
+  <cems-scroller id="fixture"></cems-scroller>
+
+  <script>
+    var myEl = document.getElementById('fixture');
+
+    suite('<cems-scroller>', function() {
+
+      test('defines the "author" property', function() {
+        assert.equal(myEl.author, 'Dimitri Glazkov');
+      });
+
+      test('says hello', function() {
+        assert.equal(myEl.sayHello(), 'cems-scroller says, Hello World!');
+        var greetings = myEl.sayHello('greetings Earthlings');
+        assert.equal(greetings, 'cems-scroller says, greetings Earthlings');
+      });
+
+      test('fires lasers', function(done) {
+        myEl.addEventListener('cems-scroller-lasers-success', function(event) {
+          assert.equal(event.detail.sound, 'Pew pew pew!');
+          done();
+        });
+        myEl.fireLasers();
+      });
+
+    });
+  </script>
+
+</body>
+</html>

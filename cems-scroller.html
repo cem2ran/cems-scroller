@@ -1,0 +1,147 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../polymer-gestures/polymer-gestures.html">
+
+<!--
+Element providing solution to no problem in particular.
+
+##### Example
+
+    <cems-scroller></cems-scroller>
+
+@element cems-scroller
+@blurb Element providing solution to no problem in particular.
+@status alpha
+@homepage http://polymerlabs.github.io/cems-scroller
+-->
+<polymer-element name="cems-scroller" attributes="count">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+
+      #viewHolder {
+        position: relative;
+        overflow: hidden;
+
+        -ms-touch-action: none;
+        touch-action: none;
+
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+
+        -webkit-transform-style: preserve-3d;
+        -moz-transform-style: preserve-3d;
+        transform-style: preserve-3d;
+      }
+
+    </style>
+
+    <div id="viewHolder">
+      <content id="content" touch-action="pan-y"></content>
+    </div>
+  </template>
+
+  <script>
+
+    // Shim for requestAnimationFrame from Paul Irishpaul ir
+    // http://www.paulirish.com/2011/requestanimationframe-for-smart-animating/
+    window.requestAnimFrame = (function () {
+      'use strict';
+
+      return window.requestAnimationFrame ||
+        window.webkitRequestAnimationFrame ||
+        window.mozRequestAnimationFrame ||
+        function (callback) {
+          window.setTimeout(callback, 1000 / 60);
+        };
+    })();
+
+    var util = {
+      applyTransform: function (n, move) {
+        n.style.webkitTransform =
+          n.style.MozTransform =
+            n.style.msTransform =
+              n.style.OTransform =
+                n.style.transform = "translate3d(" + move + "px, 0, 0)";
+      }
+    };
+
+    var elementOffset = 0;
+    var isAnimating = false;
+    var deltaX = 0, startX = 0;
+    var queue = [];
+
+    Polymer({
+
+      publish: {
+        startX: "0%",
+        count: 1,
+        padding: 10 //percentage based
+      },
+      ready: function () {
+        var PolymerGestures = window.PolymerGestures;
+        // Ready is a lifecycle callback.
+        // You can do setup work in here.
+        // More info: http://www.polymer-project.org/docs/polymer/polymer.html#lifecyclemethods
+        var n = this.$.viewHolder;
+        var width = parseInt(getComputedStyle(this).width);
+        var childWidth = ~~(width / this.count);
+        deltaX = startX = (this.startX.indexOf("%") !== -1) ? (parseInt(this.startX) / 100) * childWidth : (parseInt(this.startX) || 0);
+
+        PolymerGestures.addEventListener(n, "down", this.onDown.bind(this));
+        PolymerGestures.addEventListener(n, "track", this.onMove.bind(this));
+        PolymerGestures.addEventListener(n, "up", this.onUp.bind(this));
+        //PolymerGestures.addEventListener(n, "mouseleave", this.onUp.bind(this));
+
+
+        if (this.children.length > 0) {
+          elementOffset = childWidth + this.padding;
+
+          if (!this.$.viewHolder.style.height) {
+            this.$.viewHolder.style.height = childWidth + 'px';
+          }
+          this.children.array().map(function (child, idx, arr) {
+            child.style.position = 'absolute';
+            child.style.width = childWidth + "px";
+            child.style.height = childWidth + "px";
+
+            util.applyTransform(child, (idx * elementOffset) + startX);
+          })
+        }
+      },
+
+      render: function (e) {
+        if (!isAnimating) {
+          return;
+        }
+        this.children.array().forEach(function (child, idx) {
+          util.applyTransform(child, ( idx * elementOffset) + deltaX);
+        });
+        isAnimating = false;
+      },
+      onDown: function (e) {
+        startX = e.clientX - deltaX;
+      },
+      onMove: function (e) {
+        deltaX = e.clientX - startX;
+        if (isAnimating) {
+          return;
+        }
+        if(deltaX)
+        isAnimating = true;
+        window.requestAnimFrame(this.render.bind(this));
+      },
+      onUp: function (e) {
+        isAnimating = false;
+      }
+
+    });
+
+  </script>
+
+</polymer-element>
