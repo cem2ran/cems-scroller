@@ -1,5 +1,4 @@
 <link rel="import" href="../polymer/polymer.html">
-<link rel="import" href="../polymer-gestures/polymer-gestures.html">
 
 <!--
 Element providing solution to no problem in particular.
@@ -48,9 +47,9 @@ Element providing solution to no problem in particular.
 
   <script>
 
-    // Shim for requestAnimationFrame from Paul Irishpaul ir
+    // Shim for requestAnimationFrame from Paul Irish
     // http://www.paulirish.com/2011/requestanimationframe-for-smart-animating/
-    window.requestAnimFrame = (function () {
+    var requestAnimationFrame = (function () {
       'use strict';
 
       return window.requestAnimationFrame ||
@@ -62,19 +61,83 @@ Element providing solution to no problem in particular.
     })();
 
     var util = {
-      applyTransform: function (n, move) {
+      applyTransform: function (n, move, scale) {
+        var transform = 'scale(' + (scale || 1) + ') translate3d(' + move + 'px, 0, 0)';
         n.style.webkitTransform =
           n.style.MozTransform =
             n.style.msTransform =
               n.style.OTransform =
-                n.style.transform = "translate3d(" + move + "px, 0, 0)";
+                n.style.transform = transform;
       }
     };
 
-    var elementOffset = 0;
+    function setupEvents(view, onTap, onDrag, onRelease, onKey) {
+      if (typeof window.ontouchstart !== 'undefined') {
+        view.addEventListener('touchstart', onTap);
+        view.addEventListener('touchmove', onDrag);
+        view.addEventListener('touchend', onRelease);
+      }
+      view.addEventListener('mousedown', onTap);
+      view.addEventListener('mousemove', onDrag);
+      view.addEventListener('mouseup', onRelease);
+      //document.addEventListener('keydown', onKey);
+    }
+
+    var width = 0, elementOffset = 0, centerSnapOffset = 0, count = 0, centerIdx = 0, middleIdx = 0;
     var isAnimating = false;
-    var deltaX = 0, startX = 0;
-    var queue = [];
+    var children = [];
+    var pressed = false, velocity, amplitude, ticker, target = 0, offset = 0, timestamp, reference, frame;
+    var TIME_CONSTANT = 500;
+
+    function autoScroll() {
+      var elapsed, delta;
+      if (amplitude) {
+        elapsed = Date.now() - timestamp;
+        delta = -amplitude * Math.exp(-elapsed / TIME_CONSTANT);
+        if (delta > 0.5 || delta < -0.5) {
+          scroll(target + delta);
+          requestAnimationFrame(autoScroll);
+        } else {
+          scroll(target);
+        }
+      }
+    }
+
+    function wrap(x) {
+      return (x >= children.length) ? (x % children.length) : (x < 0) ? wrap(children.length + (x % children.length)) : x;
+    }
+
+    function scroll(x) {
+      offset = (typeof x === 'number') ? x : offset;
+      var center = Math.floor((offset - centerSnapOffset + (elementOffset)) / (elementOffset)),
+        delta = offset - centerSnapOffset - (center * elementOffset),
+        dir = (delta < 0) ? 1 : -1,
+        tween = -dir * delta / (elementOffset);
+
+      //center
+      var el = children[wrap(center)];
+      util.applyTransform(el, ( center * elementOffset) - offset);
+      el.style.opacity = 1;
+      el.style.zIndex = 0;
+
+      for (var i = 1; i <= middleIdx; ++i) {
+        //left
+        var idx = center - i;
+        el = children[wrap(idx)];
+        var isNextToCenter = (i === centerIdx && delta < 0);
+        var left_tween = isNextToCenter ? tween : 1;
+        util.applyTransform(el, ( idx * elementOffset) - offset, left_tween);
+        el.style.opacity = left_tween;
+        el.style.zIndex = -i;
+        //right
+        idx = center + i;
+        el = children[wrap(idx)];
+        var right_tween = isNextToCenter ? 1 : 1 - tween;
+        util.applyTransform(el, ( idx * elementOffset) - offset, 1);
+        el.style.opacity = right_tween;
+        el.style.zIndex = -i;
+      }
+    }
 
     Polymer({
 
@@ -83,65 +146,98 @@ Element providing solution to no problem in particular.
         count: 1,
         padding: 10 //percentage based
       },
+      countChanged: function () {
+        count = this.count;
+        centerIdx = count >> 1;
+      },
       ready: function () {
-        var PolymerGestures = window.PolymerGestures;
         // Ready is a lifecycle callback.
         // You can do setup work in here.
         // More info: http://www.polymer-project.org/docs/polymer/polymer.html#lifecyclemethods
-        var n = this.$.viewHolder;
-        var width = parseInt(getComputedStyle(this).width);
-        var childWidth = ~~(width / this.count);
-        deltaX = startX = (this.startX.indexOf("%") !== -1) ? (parseInt(this.startX) / 100) * childWidth : (parseInt(this.startX) || 0);
-
-        PolymerGestures.addEventListener(n, "down", this.onDown.bind(this));
-        PolymerGestures.addEventListener(n, "track", this.onMove.bind(this));
-        PolymerGestures.addEventListener(n, "up", this.onUp.bind(this));
-        //PolymerGestures.addEventListener(n, "mouseleave", this.onUp.bind(this));
-
-
-        if (this.children.length > 0) {
-          elementOffset = childWidth + this.padding;
-
-          if (!this.$.viewHolder.style.height) {
-            this.$.viewHolder.style.height = childWidth + 'px';
-          }
-          this.children.array().map(function (child, idx, arr) {
-            child.style.position = 'absolute';
-            child.style.width = childWidth + "px";
-            child.style.height = childWidth + "px";
-
-            util.applyTransform(child, (idx * elementOffset) + startX);
-          })
-        }
-      },
-
-      render: function (e) {
-        if (!isAnimating) {
+        if (this.children.length < 1) {
           return;
         }
-        this.children.array().forEach(function (child, idx) {
-          util.applyTransform(child, ( idx * elementOffset) + deltaX);
+        this.countChanged();
+        width = parseInt(getComputedStyle(this).width, 10);
+        var childWidth = ~~(width / this.count);
+        setupEvents(this.$.viewHolder, this.onDown.bind(this), this.onMove.bind(this), this.onUp.bind(this), null);
+
+        children = this.children.array();
+        elementOffset = childWidth + this.padding;
+        //frame = offset = (this.startX.indexOf("%") !== -1) ? (parseInt(this.startX) / 100) * childWidth : (parseInt(this.startX) || 0);
+        centerSnapOffset = (elementOffset / 4);
+        if (!this.$.viewHolder.style.height) {
+          this.$.viewHolder.style.height = childWidth + 'px';
+        }
+        children.map(function (child, idx, arr) {
+          child.style.position = 'absolute';
+          child.style.width = childWidth + "px";
+          child.style.height = childWidth + "px";
+          //util.applyTransform(child, (idx * elementOffset) + offset);
         });
-        isAnimating = false;
+        middleIdx = children.length >> 1;
+        target = offset = (middleIdx > 1 ? ((middleIdx - 1) * elementOffset) : 0) + centerSnapOffset;
+        scroll(offset);
       },
       onDown: function (e) {
-        startX = e.clientX - deltaX;
+        pressed = true;
+        reference = xPos(e);
+
+        velocity = amplitude = 0;
+        frame = offset;
+        timestamp = Date.now();
+        clearInterval(ticker);
+        ticker = setInterval(function () {
+          var now, elapsed, delta, v;
+
+          now = Date.now();
+          elapsed = now - timestamp;
+          timestamp = now;
+          delta = offset - frame;
+          frame = offset;
+
+          v = 1000 * delta / (1 + elapsed);
+          velocity = 0.8 * v + 0.2 * velocity;
+
+        }, 100);
+
+
       },
       onMove: function (e) {
-        deltaX = e.clientX - startX;
-        if (isAnimating) {
-          return;
+        if (!pressed) return;
+
+        var x = xPos(e), delta;
+        delta = reference - x;
+        if (delta > 2 || delta < -2) {
+          reference = x;
+          requestAnimationFrame(scroll.bind(null, offset + delta));
         }
-        if(deltaX)
-        isAnimating = true;
-        window.requestAnimFrame(this.render.bind(this));
+
       },
-      onUp: function (e) {
-        isAnimating = false;
+      onUp: function () {
+        pressed = false;
+
+        clearInterval(ticker);
+        if (velocity > 10 || velocity < -10) {
+          amplitude = 0.7 * velocity;
+          target = Math.round(offset + amplitude);
+        }
+        target = (Math.round(target / elementOffset) * elementOffset) + centerSnapOffset; //center snap offset
+        amplitude = target - offset;
+        timestamp = Date.now();
+        requestAnimationFrame(autoScroll);
       }
 
     });
 
+    function xPos(e) {
+      // touch event
+      if (e.targetTouches && (e.targetTouches.length >= 1)) {
+        return e.targetTouches[0].clientX;
+      }
+      // mouse event
+      return e.clientX;
+    }
   </script>
 
 </polymer-element>
