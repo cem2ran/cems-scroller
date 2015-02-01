@@ -8,7 +8,6 @@ Element providing solution to no problem in particular.
     <cems-scroller></cems-scroller>
 
 @element cems-scroller
-@blurb Element providing solution to no problem in particular.
 @status alpha
 @homepage http://polymerlabs.github.io/cems-scroller
 -->
@@ -80,7 +79,7 @@ Element providing solution to no problem in particular.
       view.addEventListener('mousedown', onTap);
       view.addEventListener('mousemove', onDrag);
       view.addEventListener('mouseup', onRelease);
-      //document.addEventListener('keydown', onKey);
+      if(onKey) document.addEventListener('keydown', onKey);
     }
 
     var width = 0, elementOffset = 0, centerSnapOffset = 0, count = 0, centerIdx = 0, middleIdx = 0;
@@ -140,7 +139,6 @@ Element providing solution to no problem in particular.
     }
 
     Polymer({
-
       publish: {
         startX: "0%",
         count: 1,

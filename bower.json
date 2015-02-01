@@ -1,6 +1,6 @@
 {
   "name": "cems-scroller",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "keywords": [
     "seed",
     "polymer",
@@ -8,8 +8,7 @@
   ],
   "main": "cems-scroller.html",
   "dependencies": {
-    "polymer": "Polymer/polymer#^0.5.1",
-    "polymer-gestures": "Polymer/polymer-gestures#master"
+    "polymer": "Polymer/polymer#^0.5.1"
   },
   "devDependencies": {
     "web-component-tester": "Polymer/web-component-tester#^2.0.0"
